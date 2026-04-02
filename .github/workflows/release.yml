@@ -26,7 +26,7 @@ jobs:
         run: npx @vscode/vsce package -o open-new-window.vsix
 
       - name: Publish to Marketplace
-        if: secrets.VSCE_PAT != ''
+        if: env.VSCE_PAT != ''
         run: npx @vscode/vsce publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
