@@ -8,6 +8,39 @@ function openInNewWindow(folderUri: vscode.Uri) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+    // 状态栏按钮：当终端获得焦点时显示
+    const statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        1000
+    );
+    statusBarItem.command = 'open-new-window.openTerminalCwdInNewWindow';
+    statusBarItem.text = '$(multiple-windows)';
+    statusBarItem.tooltip = '新窗口打开 (终端当前目录)';
+    context.subscriptions.push(statusBarItem);
+
+    // 监听终端焦点变化，终端激活时显示按钮
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTerminal((terminal) => {
+            if (terminal) {
+                statusBarItem.show();
+            } else {
+                statusBarItem.hide();
+            }
+        })
+    );
+
+    // 监听编辑器焦点变化，切换到编辑器时隐藏按钮
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => {
+            statusBarItem.hide();
+        })
+    );
+
+    // 如果激活时已有活动终端，立即显示
+    if (vscode.window.activeTerminal) {
+        statusBarItem.show();
+    }
+
     // 右键文件 / 标签栏 → 以父目录为工作区打开新窗口
     context.subscriptions.push(
         vscode.commands.registerCommand(
