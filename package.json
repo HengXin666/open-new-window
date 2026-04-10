@@ -2,7 +2,7 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
@@ -11,6 +11,9 @@
   "engines": {
     "vscode": "^1.74.0"
   },
+  "extensionKind": [
+    "ui"
+  ],
   "categories": [
     "Other"
   ],
@@ -26,6 +29,11 @@
       {
         "command": "open-new-window.openFolderInNewWindow",
         "title": "新窗口打开（此目录）",
+        "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "open-new-window.openTerminalCwdInNewWindow",
+        "title": "新窗口打开（终端当前目录）",
         "icon": "$(multiple-windows)"
       }
     ],
@@ -45,6 +53,12 @@
       "editor/title/context": [
         {
           "command": "open-new-window.openParentInNewWindow",
+          "group": "navigation@99"
+        }
+      ],
+      "terminal/context": [
+        {
+          "command": "open-new-window.openTerminalCwdInNewWindow",
           "group": "navigation@99"
         }
       ]
