@@ -46,58 +46,34 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand(
             'open-new-window.openTerminalCwdInNewWindow',
             async () => {
-                const terminals = vscode.window.terminals;
-                if (terminals.length === 0) {
-                    vscode.window.showWarningMessage('没有打开的终端');
+                const terminal = vscode.window.activeTerminal;
+                if (!terminal) {
+                    vscode.window.showWarningMessage('没有活动的终端');
                     return;
                 }
 
-                let terminal: vscode.Terminal;
-
-                if (terminals.length === 1) {
-                    // 只有一个终端，直接使用
-                    terminal = terminals[0];
-                } else {
-                    // 多个终端，收集有 cwd 的终端供用户选择
-                    interface TerminalPickItem extends vscode.QuickPickItem {
-                        terminal: vscode.Terminal;
-                    }
-
-                    const items: TerminalPickItem[] = terminals.map((t, i) => {
-                        const cwd = (t as any).shellIntegration?.cwd as vscode.Uri | undefined;
-                        const cwdPath = cwd?.fsPath ?? '未知路径';
-                        const isActive = t === vscode.window.activeTerminal;
-                        return {
-                            label: `${isActive ? '$(terminal) ' : ''}${t.name || `终端 ${i + 1}`}`,
-                            description: cwdPath,
-                            detail: isActive ? '（当前活动终端）' : undefined,
-                            terminal: t,
-                        };
-                    });
-
-                    const picked = await vscode.window.showQuickPick(items, {
-                        placeHolder: '选择要打开的终端工作目录',
-                    });
-                    if (!picked) {
-                        return; // 用户取消选择
-                    }
-                    terminal = picked.terminal;
-                }
-
                 // 通过 shellIntegration 获取终端 cwd（需要 VSCode >= 1.93）
-                const cwd = (terminal as any).shellIntegration?.cwd;
+                const cwd = (terminal as any).shellIntegration?.cwd as vscode.Uri | undefined;
                 if (cwd) {
+                    // shellIntegration.cwd 返回的 Uri 已经包含正确的 scheme
+                    // 本地是 file://，远程 SSH 是 vscode-remote://，可以直接使用
                     await openInNewWindow(cwd);
                     return;
                 }
 
-                // 回退方案：让用户手动输入路径
+                // 回退方案：让用户手动输入路径，并保留当前工作区的 URI scheme
                 const input = await vscode.window.showInputBox({
                     prompt: `无法自动获取终端 "${terminal.name}" 的路径，请手动输入工作目录`,
                     placeHolder: '/path/to/directory',
                 });
                 if (input) {
-                    await openInNewWindow(vscode.Uri.file(input));
+                    // 如果当前有工作区文件夹，复用其 URI scheme（兼容远程 SSH 场景）
+                    const wsFolder = vscode.workspace.workspaceFolders?.[0];
+                    if (wsFolder) {
+                        await openInNewWindow(wsFolder.uri.with({ path: input }));
+                    } else {
+                        await openInNewWindow(vscode.Uri.file(input));
+                    }
                 }
             }
         )

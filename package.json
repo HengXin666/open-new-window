@@ -2,7 +2,7 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
@@ -56,16 +56,10 @@
           "group": "navigation@99"
         }
       ],
-      "terminal/title/context": [
-        {
-          "command": "open-new-window.openTerminalCwdInNewWindow",
-          "group": "navigation@99"
-        }
-      ],
       "terminal/title": [
         {
           "command": "open-new-window.openTerminalCwdInNewWindow",
-          "group": "navigation@99"
+          "group": "navigation"
         }
       ]
     }
