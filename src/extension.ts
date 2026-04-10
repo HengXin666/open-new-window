@@ -1,6 +1,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const outputChannel = vscode.window.createOutputChannel('Open in New Window');
+
+function log(message: string) {
+    outputChannel.appendLine(`[${new Date().toISOString()}] ${message}`);
+}
+
 function openInNewWindow(folderUri: vscode.Uri) {
     return vscode.commands.executeCommand('vscode.openFolder', folderUri, {
         forceNewWindow: true,
@@ -8,12 +14,29 @@ function openInNewWindow(folderUri: vscode.Uri) {
 }
 
 /**
+ * 将路径字符串转换为与当前工作环境一致的 URI。
+ * 在远程 SSH 环境下，需要使用 vscode-remote:// scheme。
+ */
+function pathToWorkspaceUri(fsPath: string): vscode.Uri {
+    const wsFolder = vscode.workspace.workspaceFolders?.[0];
+    if (wsFolder && wsFolder.uri.scheme !== 'file') {
+        // 远程环境：复用工作区的 scheme 和 authority
+        return wsFolder.uri.with({ path: fsPath });
+    }
+    return vscode.Uri.file(fsPath);
+}
+
+/**
  * 确保 URI 的 scheme 与当前工作环境一致。
- * 当插件在 UI 端运行时，shellIntegration.cwd 可能返回 file:// scheme，
- * 但实际上当前是远程 SSH 环境，需要修正为 vscode-remote:// scheme。
+ * 在远程 SSH 环境下，shellIntegration.cwd 可能返回 file:// scheme，
+ * 需要修正为 vscode-remote:// scheme。
  */
 function ensureCorrectUri(uri: vscode.Uri): vscode.Uri {
     const wsFolder = vscode.workspace.workspaceFolders?.[0];
+    log(`ensureCorrectUri - input: ${uri.toString()} (scheme=${uri.scheme}, authority=${uri.authority}, path=${uri.path})`);
+    log(`ensureCorrectUri - wsFolder: ${wsFolder?.uri.toString() ?? 'undefined'}`);
+    log(`ensureCorrectUri - remoteName: ${vscode.env.remoteName ?? 'undefined'}`);
+
     if (!wsFolder) {
         return uri;
     }
@@ -21,10 +44,71 @@ function ensureCorrectUri(uri: vscode.Uri): vscode.Uri {
     // 如果当前工作区是远程的（scheme 不是 file），但 cwd 的 scheme 是 file
     // 说明需要修正 URI 的 scheme 和 authority
     if (wsFolder.uri.scheme !== 'file' && uri.scheme === 'file') {
-        return wsFolder.uri.with({ path: uri.path });
+        const corrected = wsFolder.uri.with({ path: uri.path });
+        log(`ensureCorrectUri - corrected to: ${corrected.toString()}`);
+        return corrected;
     }
 
+    // 如果处于远程环境但 URI 的 scheme 和 authority 与工作区不一致，也需要修正
+    if (vscode.env.remoteName && wsFolder.uri.scheme !== 'file') {
+        if (uri.scheme !== wsFolder.uri.scheme || uri.authority !== wsFolder.uri.authority) {
+            const corrected = wsFolder.uri.with({ path: uri.path });
+            log(`ensureCorrectUri - remote mismatch, corrected to: ${corrected.toString()}`);
+            return corrected;
+        }
+    }
+
+    log(`ensureCorrectUri - no correction needed, returning: ${uri.toString()}`);
     return uri;
+}
+
+/**
+ * 尝试获取终端的当前工作目录 URI。
+ * 优先使用 shellIntegration.cwd，失败时尝试其他方案。
+ */
+async function getTerminalCwd(terminal: vscode.Terminal): Promise<vscode.Uri | undefined> {
+    // 方案一：通过 shellIntegration 获取终端 cwd（需要 VSCode >= 1.93）
+    const shellCwd = terminal.shellIntegration?.cwd;
+    if (shellCwd) {
+        return ensureCorrectUri(shellCwd);
+    }
+
+    // 方案二：如果 shellIntegration 不可用，等待其初始化
+    // shellIntegration 可能在终端刚创建时还未就绪
+    const shellIntegration = await waitForShellIntegration(terminal, 3000);
+    if (shellIntegration?.cwd) {
+        return ensureCorrectUri(shellIntegration.cwd);
+    }
+
+    return undefined;
+}
+
+/**
+ * 等待终端的 shellIntegration 初始化完成。
+ */
+function waitForShellIntegration(
+    terminal: vscode.Terminal,
+    timeoutMs: number
+): Promise<vscode.TerminalShellIntegration | undefined> {
+    // 如果已经有了，直接返回
+    if (terminal.shellIntegration) {
+        return Promise.resolve(terminal.shellIntegration);
+    }
+
+    return new Promise<vscode.TerminalShellIntegration | undefined>((resolve) => {
+        const timeout = setTimeout(() => {
+            disposable.dispose();
+            resolve(undefined);
+        }, timeoutMs);
+
+        const disposable = vscode.window.onDidChangeTerminalShellIntegration((e) => {
+            if (e.terminal === terminal) {
+                clearTimeout(timeout);
+                disposable.dispose();
+                resolve(e.shellIntegration);
+            }
+        });
+    });
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -105,17 +189,13 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                // 通过 shellIntegration 获取终端 cwd（需要 VSCode >= 1.93）
-                const cwd = (terminal as any).shellIntegration?.cwd as vscode.Uri | undefined;
-                if (cwd) {
-                    // shellIntegration.cwd 返回的 Uri 已经包含正确的 scheme
-                    // 本地是 file://，远程 SSH 是 vscode-remote://
-                    // 但如果插件在 UI 端运行，cwd 可能只有 file:// scheme
-                    // 需要检查是否在远程环境中，如果是则修正 URI
-                    const remoteUri = ensureCorrectUri(cwd);
-                    await openInNewWindow(remoteUri);
+                const cwdUri = await getTerminalCwd(terminal);
+                if (cwdUri) {
+                    log(`openTerminalCwdInNewWindow - opening: ${cwdUri.toString()}`);
+                    await openInNewWindow(cwdUri);
                     return;
                 }
+                log(`openTerminalCwdInNewWindow - failed to get cwd, falling back to input box`);
 
                 // 回退方案：让用户手动输入路径，并保留当前工作区的 URI scheme
                 const input = await vscode.window.showInputBox({
@@ -123,13 +203,7 @@ export function activate(context: vscode.ExtensionContext) {
                     placeHolder: '/path/to/directory',
                 });
                 if (input) {
-                    const wsFolder = vscode.workspace.workspaceFolders?.[0];
-                    if (wsFolder) {
-                        // 复用当前工作区的 URI scheme（兼容远程 SSH 场景）
-                        await openInNewWindow(wsFolder.uri.with({ path: input }));
-                    } else {
-                        await openInNewWindow(vscode.Uri.file(input));
-                    }
+                    await openInNewWindow(pathToWorkspaceUri(input));
                 }
             }
         )
