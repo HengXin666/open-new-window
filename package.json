@@ -2,7 +2,7 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
@@ -12,8 +12,8 @@
     "vscode": "^1.93.0"
   },
   "extensionKind": [
-    "ui",
-    "workspace"
+    "workspace",
+    "ui"
   ],
   "categories": [
     "Other"

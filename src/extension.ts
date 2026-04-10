@@ -7,6 +7,26 @@ function openInNewWindow(folderUri: vscode.Uri) {
     });
 }
 
+/**
+ * 确保 URI 的 scheme 与当前工作环境一致。
+ * 当插件在 UI 端运行时，shellIntegration.cwd 可能返回 file:// scheme，
+ * 但实际上当前是远程 SSH 环境，需要修正为 vscode-remote:// scheme。
+ */
+function ensureCorrectUri(uri: vscode.Uri): vscode.Uri {
+    const wsFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!wsFolder) {
+        return uri;
+    }
+
+    // 如果当前工作区是远程的（scheme 不是 file），但 cwd 的 scheme 是 file
+    // 说明需要修正 URI 的 scheme 和 authority
+    if (wsFolder.uri.scheme !== 'file' && uri.scheme === 'file') {
+        return wsFolder.uri.with({ path: uri.path });
+    }
+
+    return uri;
+}
+
 export function activate(context: vscode.ExtensionContext) {
     // 状态栏按钮：当终端获得焦点时显示
     const statusBarItem = vscode.window.createStatusBarItem(
@@ -89,8 +109,11 @@ export function activate(context: vscode.ExtensionContext) {
                 const cwd = (terminal as any).shellIntegration?.cwd as vscode.Uri | undefined;
                 if (cwd) {
                     // shellIntegration.cwd 返回的 Uri 已经包含正确的 scheme
-                    // 本地是 file://，远程 SSH 是 vscode-remote://，可以直接使用
-                    await openInNewWindow(cwd);
+                    // 本地是 file://，远程 SSH 是 vscode-remote://
+                    // 但如果插件在 UI 端运行，cwd 可能只有 file:// scheme
+                    // 需要检查是否在远程环境中，如果是则修正 URI
+                    const remoteUri = ensureCorrectUri(cwd);
+                    await openInNewWindow(remoteUri);
                     return;
                 }
 
@@ -100,9 +123,9 @@ export function activate(context: vscode.ExtensionContext) {
                     placeHolder: '/path/to/directory',
                 });
                 if (input) {
-                    // 如果当前有工作区文件夹，复用其 URI scheme（兼容远程 SSH 场景）
                     const wsFolder = vscode.workspace.workspaceFolders?.[0];
                     if (wsFolder) {
+                        // 复用当前工作区的 URI scheme（兼容远程 SSH 场景）
                         await openInNewWindow(wsFolder.uri.with({ path: input }));
                     } else {
                         await openInNewWindow(vscode.Uri.file(input));
