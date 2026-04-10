@@ -2,22 +2,25 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
     "url": "https://github.com/HengXin666/open-new-window"
   },
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.93.0"
   },
   "extensionKind": [
-    "ui"
+    "ui",
+    "workspace"
   ],
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -70,7 +73,7 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
+    "@types/vscode": "^1.93.0",
     "@types/node": "^18.0.0",
     "typescript": "^5.0.0"
   }
