@@ -2,7 +2,7 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
@@ -12,14 +12,15 @@
     "vscode": "^1.93.0"
   },
   "extensionKind": [
-    "workspace",
     "ui"
   ],
   "categories": [
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:open-new-window.checkForUpdates",
+    "onCommand:open-new-window.reloadAllWindows"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -38,8 +39,35 @@
         "command": "open-new-window.openTerminalCwdInNewWindow",
         "title": "新窗口打开 (终端当前目录)",
         "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "open-new-window.checkForUpdates",
+        "title": "Open in New Window: 检查更新",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "open-new-window.reloadAllWindows",
+        "title": "Open in New Window: 重载所有窗口",
+        "icon": "$(refresh)"
       }
     ],
+    "configuration": {
+      "title": "Open in New Window",
+      "properties": {
+        "open-new-window.autoUpdate.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "自动从 GitHub Releases 检查 Open in New Window 更新。"
+        },
+        "open-new-window.autoUpdate.checkIntervalHours": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "maximum": 168,
+          "description": "自动检查更新的间隔（小时）。"
+        }
+      }
+    },
     "menus": {
       "explorer/context": [
         {
@@ -69,12 +97,15 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "compile": "rm -rf out && tsc -p ./ && mkdir -p out/vendor && cp ../vscode-extension-github-updater/dist/index.js out/vendor/githubUpdater.js",
+    "watch": "tsc -watch -p ./",
+    "check": "npm run compile",
+    "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/vscode": "^1.93.0",
     "@types/node": "^18.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.4.5",
+    "vsce": "^2.15.0"
   }
 }

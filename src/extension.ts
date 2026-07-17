@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { GitHubVsixUpdateManager } from './vendor/githubUpdater';
 
 const outputChannel = vscode.window.createOutputChannel('Open in New Window');
 
@@ -111,7 +112,7 @@ function waitForShellIntegration(
     });
 }
 
-export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext): void {
     // 状态栏按钮：当终端获得焦点时显示
     const statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
@@ -208,6 +209,34 @@ export function activate(context: vscode.ExtensionContext) {
             }
         )
     );
+
+    const configuredHours = vscode.workspace.getConfiguration('open-new-window.autoUpdate').get<number>('checkIntervalHours', 24);
+    const checkIntervalMs = Math.max(1, Number.isFinite(configuredHours) ? configuredHours : 24) * 60 * 60 * 1000;
+    const updateManager = new GitHubVsixUpdateManager(context, {
+        owner: 'HengXin666',
+        repo: 'open-new-window',
+        displayName: 'Open in New Window',
+        stateKeyPrefix: 'open-new-window.updater',
+        assetPattern: /^open-new-window-.*\.vsix$/i,
+        checkIntervalMs,
+    });
+    context.subscriptions.push(updateManager);
+
+    const syncAutomaticChecks = (): void => {
+        const enabled = vscode.workspace.getConfiguration('open-new-window.autoUpdate').get<boolean>('enabled', true);
+        updateManager.setAutomaticChecksEnabled(enabled);
+    };
+    syncAutomaticChecks();
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('open-new-window.checkForUpdates', () => updateManager.checkForUpdates({ manual: true })),
+        vscode.commands.registerCommand('open-new-window.reloadAllWindows', () => updateManager.requestReloadAllWindows()),
+        vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('open-new-window.autoUpdate')) {
+                syncAutomaticChecks();
+            }
+        })
+    );
 }
 
-export function deactivate() {}
+export function deactivate(): void {}

@@ -1,38 +1,77 @@
-name: Release
+name: Release VSIX
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout extension
+        uses: actions/checkout@v4
+        with:
+          path: project
 
-      - uses: actions/setup-node@v4
+      - name: Checkout shared updater
+        uses: actions/checkout@v4
+        with:
+          repository: HengXin666/vscode-extension-github-updater
+          path: vscode-extension-github-updater
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            project/package-lock.json
+            vscode-extension-github-updater/package-lock.json
 
-      - run: npm ci
+      - name: Build shared updater
+        working-directory: vscode-extension-github-updater
+        run: npm ci && npm run check
 
-      - run: npm run compile
+      - name: Install dependencies
+        working-directory: project
+        run: npm ci
 
-      - name: Package VSIX
-        run: npx @vscode/vsce package -o open-new-window.vsix
+      - name: Check
+        working-directory: project
+        run: npm run check
 
-      - name: Publish to Marketplace
-        if: env.VSCE_PAT != ''
-        run: npx @vscode/vsce publish
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Package extension
+        working-directory: project
+        run: npm run package
 
-      - name: Create GitHub Release
+      - name: Read package version
+        id: package
+        working-directory: project
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          NAME="$(node -p "require('./package.json').name")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "vsix=$NAME-$VERSION.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update tag
+        working-directory: project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "${{ steps.package.outputs.tag }}" "$GITHUB_SHA"
+          git push -f origin "${{ steps.package.outputs.tag }}"
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: open-new-window.vsix
+          tag_name: ${{ steps.package.outputs.tag }}
+          name: Open in New Window ${{ steps.package.outputs.version }}
+          files: project/${{ steps.package.outputs.vsix }}
           generate_release_notes: true
+          make_latest: true

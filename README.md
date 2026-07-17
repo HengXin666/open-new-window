@@ -1,5 +1,17 @@
 # Open in New Window
 
+## 更新与重载
+
+- 默认自动检查 GitHub Release 并支持一键安装 VSIX。
+- `Open in New Window: 检查更新` 可手动检查。
+- `Open in New Window: 重载所有窗口` 可向所有 VS Code 窗口广播重载请求。
+
+## 构建
+
+```bash
+./build.sh
+```
+
 右键文件或文件夹, 在新的 VSCode 窗口中打开对应目录作为工作区。
 
 支持本地开发和远程开发(如 SSH Remote)。

@@ -2,3 +2,7 @@ node_modules/
 out/
 *.vsix
 .vscode-test/
+
+# TypeScript compiler output must stay outside src/
+**/*.js
+**/*.js.map
