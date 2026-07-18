@@ -2,7 +2,7 @@
   "name": "open-new-window",
   "displayName": "Open in New Window",
   "description": "在新的 VSCode 窗口中打开文件所在目录",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "HengXin666",
   "repository": {
     "type": "git",
